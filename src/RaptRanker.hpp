@@ -1,10 +1,26 @@
-//
-//  RaptRanker.h
-//  
-//
-//  Created by adinnovaiton on 2017/02/10.
-//
-//
+/*
+MIT License
+
+Copyright (c) 2019 Hamada Laboratory, and Ryoga Ishida
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 
 #ifndef RaptRanker_HPP
 #define RaptRanker_HPP
@@ -58,19 +74,14 @@ class RaptRanker{
         int sequence_maximum_length_;
         int sequence_minimum_length_;
         int wide_length_;
-        double alphabet_weight_;
+        double nucleotide_weight_;
         double cosine_distance_;
         double missing_ratio_;
         int input_file_nums_;
-        //std::vector<std::string> input_file_names_;
         std::vector<Input_file_info> input_file_infos_;
         std::string experiment_dbfile_;
         std::string analysis_dbfile_;
         std::string analysis_output_path_;
-        //std::string path_to_CapR;
-        //std::string path_to_sketchsort;
-        //std::string path_to_Weblogo;
-        //int exWeblogo;
 
 
         //for dev
@@ -82,102 +93,6 @@ class RaptRanker{
         bool add_binding_ = false;
         std::string bindingfile_path_;
     };
-
-    /*struct Round_info{
-    public:
-        int rawdata_reads;
-        int trimmed_5;
-        int trimmed_3;
-        int total_reads;
-        int unique_reads;
-    };*/
-
-    /*class Seq_info{
-    public:
-        Seq_info(std::string &temp_seq, int temp_count) :seq_(std::move(temp_seq)), count_(temp_count){};
-        ~Seq_info() = default;
-        std::string seq_;
-        int count_;
-    };
-
-    class HTSeq_info;
-    class PartingSeq_info;
-    class MotifCluster_info;
-
-
-    class HTSeq_info{
-    public:
-        HTSeq_info(int temp_id, unsigned long rounds, std::string temp_seq)
-                :seq_id_(temp_id),binding_(std::numeric_limits<double>::quiet_NaN()),
-                 seq_(std::move(temp_seq))
-        {
-            std::vector<double> init(rounds,0.0);
-            AveMC_profile_.reserve(rounds);
-            BestMC_profile_.reserve(rounds);
-            AveDegRead_profile_.reserve(rounds);
-            BestDegRead_profile_.reserve(rounds);
-            AveMC_profile_=init;
-            BestMC_profile_=init;
-            AveDegRead_profile_=init;
-            BestDegRead_profile_=init;
-            secondary_structure_profile_.reserve(temp_seq.size());
-            alphabet_profile_.reserve(temp_seq.size());
-        };
-        ~HTSeq_info()=default;
-        int seq_id_;
-        double binding_;
-        std::string seq_;
-        std::vector<int> count_profile_;
-        std::vector<double> AveMC_profile_;
-        std::vector<double> BestMC_profile_;
-        std::vector<double> AveDegRead_profile_;
-        std::vector<double> BestDegRead_profile_;
-        std::vector<std::vector<double> > secondary_structure_profile_;
-        std::vector<std::vector<double> > alphabet_profile_;
-
-        std::vector<PartingSeq_info*> part_ptrs_;
-    };
-
-    class PartingSeq_info{
-    public:
-        PartingSeq_info(int temp_ssid, int temp_pos, HTSeq_info* temp_origin)
-                :ss_id_(temp_ssid), position_(temp_pos), origin_seq_(temp_origin), cluster_ptr_(nullptr){};
-        ~PartingSeq_info() = default;
-        int ss_id_;
-        int position_;
-        HTSeq_info* origin_seq_;
-        MotifCluster_info* cluster_ptr_;
-    };
-
-    class MotifCluster_info{
-    public:
-        explicit MotifCluster_info(int temp_ss_id)
-                :motif_cluster_id_(-1), root_ss_id_(temp_ss_id),
-                 binding_true_(false), binding_false_(false), radius_(-1 * std::numeric_limits<double>::infinity()){};
-        ~MotifCluster_info() = default;
-
-        int motif_cluster_id_;
-        int root_ss_id_;
-        bool binding_true_; //true->there is
-        bool binding_false_;
-        double radius_;
-        std::vector<double> motif_count_;
-
-        std::vector<PartingSeq_info*> cluster_member_;
-
-        void set_radius(double x){
-            if(x > radius_) radius_ = x;
-        }
-    };
-
-    typedef std::vector<Seq_info> SINGLE_SEQ;
-    typedef std::vector<std::vector<Seq_info> > DOUBLE_SEQ;
-    typedef std::vector<PartingSeq_info> SINGLE_PS;
-    typedef std::vector<MotifCluster_info> SINGLE_MC;
-    typedef std::vector<HTSeq_info> SINGLE_HT;
-    typedef std::vector<Round_info> DOUBLE_ROUND;*/
-
-
 
 
     class WeightedUnionFind {
@@ -242,7 +157,7 @@ class RaptRanker{
     class Graph {
     public:
         ~Graph() = default;
-        std::vector<Edge> edges_;  // 辺集合
+        std::vector<Edge> edges_;
 
         void sort_edge() {
             sort(edges_.begin(), edges_.end());

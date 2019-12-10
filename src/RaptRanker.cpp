@@ -1,10 +1,26 @@
-//
-//  RaptRanker.cpp
-//  
-//
-//  Created by adinnovaiton on 2017/02/10.
-//
-//
+/*
+MIT License
+
+Copyright (c) 2019 Hamada Laboratory, and Ryoga Ishida
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
 
 #include "RaptRanker.hpp"
 #include "Stopwatch.hpp"
@@ -39,7 +55,7 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
 
     param.wide_length_ = json["wide_length"].int_value();
 
-    param.alphabet_weight_ = json["alphabet_weight"].number_value();
+    param.nucleotide_weight_ = json["nucleotide_weight"].number_value();
     param.cosine_distance_ = json["cosine_distance"].number_value();
     param.missing_ratio_ = json["missing_ratio"].number_value();
 
@@ -72,14 +88,14 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
 
     std::cout << "===== Parameter setting =====\n";
     std::cout << "file_type : " << param.file_type_ << "\n";
-    std::cout << "forward_primer_ : "  << param.forward_primer_ << "\n";
+    std::cout << "forward_primer : "  << param.forward_primer_ << "\n";
     std::cout << "reverse_primer : "  << param.reverse_primer_ << "\n";
     std::cout << "add_forward_primer : "  << param.add_forward_primer_ << "\n";
     std::cout << "add_reverse_primer : "  << param.add_reverse_primer_ << "\n";
     std::cout << "sequence_maximum_length : "  << param.sequence_maximum_length_ << "\n";
     std::cout << "sequence_minimum_length : "  << param.sequence_minimum_length_ << "\n";
     std::cout << "wide_length : "  << param.wide_length_ << "\n";
-    std::cout << "alphabet_weight : "  << param.alphabet_weight_ << "\n";
+    std::cout << "nucleotide_weight : " << param.nucleotide_weight_ << "\n";
     std::cout << "cosine_distance : "  << param.cosine_distance_ << "\n";
     std::cout << "missing_ratio : "  << param.missing_ratio_ << "\n";
     std::cout << "input_file_nums : "  << param.input_file_nums_ << "\n";
@@ -90,14 +106,15 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
         std::cout << "    file_path : "  << item.file_path_ << "\n\n";
     }
     std::cout << "experiment_dbfile : "  << param.experiment_dbfile_ << "\n";
-    std::cout << "analysis_dbfile : "  << param.analysis_dbfile_ << "\n";
     std::cout << "analysis_output_path : "  << param.analysis_output_path_<< "\n";
+    std::cout << "analysis_dbfile : "  << param.analysis_dbfile_ << "\n";
     std::cout << "=============================\n";
 
-    std::cout << "===== other options =====\n";
-    std::cout << "exFiltering : "  << std::to_string(param.exFiltering_) << "\n";
-    std::cout << "exCapR : "  << std::to_string(param.exCapR_) << "\n";
-    std::cout << "exSketchSort : "<< param.exSketchSort_ << "\n";
+    std::cout << "===== extra options =====\n";
+//    std::cout << "exFiltering : "  << std::to_string(param.exFiltering_) << "\n";
+//    std::cout << "exCapR : "  << std::to_string(param.exCapR_) << "\n";
+//    std::cout << "exSketchSort : "<< param.exSketchSort_ << "\n";
+    std::cout << "exKmer : "<< param.exKmer_ << "\n";
     std::cout << "addbinding : "<< std::to_string(param.add_binding_) << "\n";
     std::cout << "bindingfile : "<< param.bindingfile_path_ << "\n";
     std::cout << "=============================\n";
@@ -166,7 +183,6 @@ void RaptRanker::CalcMain(const Parameter_info &param) {
 
 
 void RaptRanker::InputDatasDB(const Parameter_info &param) {
-    //全配列を格納するDBの存在判定・作成
     std::string dbfile = param.experiment_dbfile_;
     std::cout << "Getting ready \"" << dbfile << "\"..." << std::endl;
 
@@ -270,13 +286,13 @@ void RaptRanker::InputDatasDB(const Parameter_info &param) {
 void RaptRanker::CalcMSD(std::vector<std::string> &mseq, const int low, const int high, std::vector<std::vector<int> > &simi,
                          std::vector<std::string> &temp, const int n = 0){
     int cal_length = high-low+1;
-    int count[key_length]; //count[]の初期化
-    for (int i=0; i<key_length; ++i) { //count[]の初期化
+    int count[key_length];
+    for (int i=0; i<key_length; ++i) {
         count[i] = 0;
     }
     int* trace;
-    trace = new int[cal_length](); //trace[]の初期化
-    for (int x=low; x<=high; x++) { //各配列のn文字目をkeyごとに頻度を計算(度数分布)
+    trace = new int[cal_length]();
+    for (int x=low; x<=high; x++) {
         for (int y=0; y<key_length; y++) {
             if (mseq[x][n]==key[y]) {
                 count[y] += 1;
@@ -290,7 +306,7 @@ void RaptRanker::CalcMSD(std::vector<std::string> &mseq, const int low, const in
             }
         }
     }
-    for (int x=1; x<key_length; x++) { //累積分布を作成
+    for (int x=1; x<key_length; x++) {
         count[x] += count[x-1];
     }
     int END = count[key_length-1]-count[key_length-2];
@@ -303,14 +319,14 @@ void RaptRanker::CalcMSD(std::vector<std::string> &mseq, const int low, const in
         simi.emplace_back(add);
         add.clear();
     }
-    for (int x=cal_length-1; x>=0; x--) { //tempの作成
+    for (int x=cal_length-1; x>=0; x--) {
         int c = trace[x];
         int k = count[c];
         temp[low+k-1] = mseq[low+x];
         count[c] -= 1;
     }
     delete[] trace;
-    for (int x=0; x<cal_length; x++) { //copy
+    for (int x=0; x<cal_length; x++) { 
         mseq[low+x] = temp[low+x];
     }
     
@@ -915,13 +931,13 @@ void RaptRanker::RunSketchsortDB(const Parameter_info &param){
                 for (int j = 0; j < param.wide_length_; ++j) {
                     //sequence profile
                     if (partseq[j] == 'A') {
-                        output_sstream << param.alphabet_weight_ << " 0 0 0 ";
+                        output_sstream << param.nucleotide_weight_ << " 0 0 0 ";
                     } else if (partseq[j] == 'G') {
-                        output_sstream << "0 " << param.alphabet_weight_ << " 0 0 ";
+                        output_sstream << "0 " << param.nucleotide_weight_ << " 0 0 ";
                     } else if (partseq[j] == 'C') {
-                        output_sstream << "0 0 " << param.alphabet_weight_ << " 0 ";
+                        output_sstream << "0 0 " << param.nucleotide_weight_ << " 0 ";
                     } else {
-                        output_sstream << "0 0 0 " << param.alphabet_weight_ << " ";
+                        output_sstream << "0 0 0 " << param.nucleotide_weight_ << " ";
                     }
 
                     //secondary structure profile
