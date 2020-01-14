@@ -77,8 +77,8 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
     param.analysis_dbfile_ = json["analysis_dbfile"].string_value();
     param.analysis_output_path_ = json["analysis_output_path"].string_value();
 
-    param.exFiltering_ = json["exFiltering"].bool_value();
-    param.exCapR_ = json["exCapR"].bool_value();
+//    param.exFiltering_ = json["exFiltering"].bool_value();
+//    param.exCapR_ = json["exCapR"].bool_value();
     param.exSketchSort_ = json["exSketchSort"].bool_value();
     param.exKmer_ = json["exKmer"].bool_value();
 
@@ -130,10 +130,10 @@ void RaptRanker::CalcMain(const Parameter_info &param) {
 
     InputDatasDB(param);
     timer.add_check_point("DataInput");
-    if (param.exCapR_) {
-        AddSecondaryStructureDB(param);
-        timer.add_check_point("CapR");
-    }
+
+    AddSecondaryStructureDB(param);
+    timer.add_check_point("CapR");
+
 
 
 
@@ -697,7 +697,7 @@ void RaptRanker::AddSecondaryStructureDB(const Parameter_info &param) {
 
 void RaptRanker::CreateHTPartSeqinfoDB(const Parameter_info &param) {
 
-    std::cout << "creating HT-partSeqDB..." << std::endl;
+    std::cout << "creating HT-subSeqDB..." << std::endl;
 
     std::string dbfile = param.analysis_dbfile_;
     if(file_exists(dbfile)){
@@ -711,58 +711,58 @@ void RaptRanker::CreateHTPartSeqinfoDB(const Parameter_info &param) {
         //resultDB.exec("PRAGMA default_synchronous =  NORMAL");
 
 
-        resultDB.exec("CREATE TABLE IF NOT EXISTS all_partseq("
-                       "partseq_id       INTEGER  PRIMARY KEY,"
-                       "part_sequence    TEXT     NOT NULL,"
-                       "part_structure   TEXT     NOT NULL,"
+        resultDB.exec("CREATE TABLE IF NOT EXISTS all_subseq("
+                       "subseq_id       INTEGER  PRIMARY KEY,"
+                       "sub_sequence    TEXT     NOT NULL,"
+                       "sub_structure   TEXT     NOT NULL,"
                        "seq_id           INTEGER  NOT NULL,"
                        "position         INTEGER  NOT NULL,"
                        "UNIQUE(seq_id,position)"
                        ")");
-        std::cout << "    all_partseq Table is ready." << std::endl;
+        std::cout << "    all_subseq Table is ready." << std::endl;
 
 
-        resultDB.exec("CREATE TABLE IF NOT EXISTS partseq_cluster("
-                      "partseq_id  INTEGER  NOT NULL  UNIQUE,"
+        resultDB.exec("CREATE TABLE IF NOT EXISTS subseq_cluster("
+                      "subseq_id  INTEGER  NOT NULL  UNIQUE,"
                       "cluster_id  INTEGER  NOT NULL,"
-                      "FOREIGN KEY(partseq_id) REFERENCES all_partseq(partseq_id)"
+                      "FOREIGN KEY(subseq_id) REFERENCES all_subseq(subseq_id)"
                       ")");
-        std::cout << "    partseq_cluster Table is ready." << std::endl;
+        std::cout << "    subseq_cluster Table is ready." << std::endl;
 
 
 
-        std::string part_score_template =   "("
-                                            "partseq_id  INTEGER  NOT NULL,"
+        std::string sub_score_template =   "("
+                                            "subseq_id  INTEGER  NOT NULL,"
                                             "round_id    INTEGER  NOT NULL,"
                                             "value       NUMERIC  NOT NULL,"
-                                            "FOREIGN KEY(partseq_id) REFERENCES all_partseq(partseq_id),"
-                                            "UNIQUE(partseq_id, round_id)"
+                                            "FOREIGN KEY(subseq_id) REFERENCES all_subseq(subseq_id),"
+                                            "UNIQUE(subseq_id, round_id)"
                                             ")";
 
         resultDB.exec(
-                "CREATE TABLE IF NOT EXISTS partseq_count" + part_score_template
+                "CREATE TABLE IF NOT EXISTS subseq_count" + sub_score_template
         );
-//        std::cout << "    partseq_count Table is ready." << std::endl;
+//        std::cout << "    subseq_count Table is ready." << std::endl;
 
 
         resultDB.exec(
-                "CREATE TABLE IF NOT EXISTS partseq_freq" + part_score_template
+                "CREATE TABLE IF NOT EXISTS subseq_freq" + sub_score_template
         );
-//        std::cout << "    partseq_freq Table is ready." << std::endl;
+//        std::cout << "    subseq_freq Table is ready." << std::endl;
 
 
         /*resultDB.exec(
-                "CREATE TABLE IF NOT EXISTS partseq_enrich" + part_score_template
+                "CREATE TABLE IF NOT EXISTS subseq_enrich" + sub_score_template
         );
-        std::cout << "    partseq_enrich Table is ready.\n";*/
-        std::cout << "    part_sequence score Tables are ready." << std::endl;
+        std::cout << "    subseq_enrich Table is ready.\n";*/
+        std::cout << "    sub_sequence score Tables are ready." << std::endl;
 
 
         std::string cluster_score_template =    "("
                                                 "cluster_id  INTEGER  NOT NULL,"
                                                 "round_id    INTEGER  NOT NULL,"
                                                 "value       NUMERIC  NOT NULL,"
-                                                "FOREIGN KEY(cluster_id) REFERENCES partseq_cluster(cluster_id),"
+                                                "FOREIGN KEY(cluster_id) REFERENCES subseq_cluster(cluster_id),"
                                                 "UNIQUE(cluster_id, round_id)"
                                                 ")";
 
@@ -810,12 +810,12 @@ void RaptRanker::CreateHTPartSeqinfoDB(const Parameter_info &param) {
         std::cout << "    sequence score Tables are ready." << std::endl;
 
 
-        resultDB.exec("CREATE INDEX IF NOT EXISTS partsequence_index ON all_partseq(part_sequence)");
-        resultDB.exec("CREATE INDEX IF NOT EXISTS clusterid_index ON partseq_cluster(cluster_id)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS subsequence_index ON all_subseq(sub_sequence)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS clusterid_index ON subseq_cluster(cluster_id)");
 
-        resultDB.exec("CREATE INDEX IF NOT EXISTS partseq_freq_value_index ON partseq_freq(value)");
-        resultDB.exec("CREATE INDEX IF NOT EXISTS partseq_count_value_index ON partseq_count(value)");
-        //resultDB.exec("CREATE INDEX IF NOT EXISTS partseq_enrich_value_index ON partseq_enrich(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS subseq_freq_value_index ON subseq_freq(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS subseq_count_value_index ON subseq_count(value)");
+        //resultDB.exec("CREATE INDEX IF NOT EXISTS subseq_enrich_value_index ON subseq_enrich(value)");
 
         resultDB.exec("CREATE INDEX IF NOT EXISTS cluster_freq_value_index ON cluster_freq(value)");
         resultDB.exec("CREATE INDEX IF NOT EXISTS cluster_deg_value_index ON cluster_deg(value)");
@@ -844,7 +844,7 @@ void RaptRanker::CreateHTPartSeqinfoDB(const Parameter_info &param) {
 
         SQLite::Statement   select_query(seqinfoDB, "SELECT all_seq.seq_id,sequence,seq_secondary_structure.secondary_structure"
                                                     " FROM all_seq NATURAL INNER JOIN seq_secondary_structure");
-        SQLite::Statement   insert_query(resultDB, "INSERT INTO all_partseq(seq_id, part_sequence, part_structure, position) VALUES(?1, ?2, ?3, ?4)");
+        SQLite::Statement   insert_query(resultDB, "INSERT INTO all_subseq(seq_id, sub_sequence, sub_structure, position) VALUES(?1, ?2, ?3, ?4)");
 
         SQLite::Transaction seq_transaction(seqinfoDB);
         SQLite::Transaction result_transaction(resultDB);
@@ -865,16 +865,16 @@ void RaptRanker::CreateHTPartSeqinfoDB(const Parameter_info &param) {
             unsigned long last = sequence.length()-param.wide_length_;
 
             while(position <= last) {
-                std::string partseq = sequence.substr(position, (unsigned long)param.wide_length_);
+                std::string subseq = sequence.substr(position, (unsigned long)param.wide_length_);
 
-                std::string part_structure;
+                std::string sub_structure;
                 for (unsigned long i=position, n=position+param.wide_length_; i < n; ++i) {
-                    part_structure += structure[i] + "\n";
+                    sub_structure += structure[i] + "\n";
                 }
 
                 insert_query.bind(1, seq_id);
-                insert_query.bind(2, partseq);
-                insert_query.bind(3, part_structure);
+                insert_query.bind(2, subseq);
+                insert_query.bind(3, sub_structure);
                 insert_query.bind(4, (int)position + 1);
 
                 while(insert_query.executeStep()){}
@@ -887,13 +887,13 @@ void RaptRanker::CreateHTPartSeqinfoDB(const Parameter_info &param) {
         seq_transaction.commit();
         result_transaction.commit();
     }catch(std::exception& e){
-        std::cerr << "Error in inserting into all_partseq table" << std::endl;
+        std::cerr << "Error in inserting into all_subseq table" << std::endl;
         std::cerr << "exception:" << e.what() << std::endl;
         exit(1);
     }
 
 
-    std::cout << "creating HT-partSeqDB finished." << std::endl;
+    std::cout << "creating HT-subSeqDB finished." << std::endl;
 }
 
 void RaptRanker::RunSketchsortDB(const Parameter_info &param){
@@ -920,21 +920,21 @@ void RaptRanker::RunSketchsortDB(const Parameter_info &param){
                 structure.emplace_back(line);
             }
 
-            //each partseq
+            //each subseq
             unsigned long position = 0;
             unsigned long last = sequence.length()-param.wide_length_;
 
             while(position <= last) {
-                std::string partseq = sequence.substr(position, (unsigned long) param.wide_length_);
+                std::string subseq = sequence.substr(position, (unsigned long) param.wide_length_);
 
                 std::ostringstream output_sstream;
                 for (int j = 0; j < param.wide_length_; ++j) {
                     //sequence profile
-                    if (partseq[j] == 'A') {
+                    if (subseq[j] == 'A') {
                         output_sstream << param.nucleotide_weight_ << " 0 0 0 ";
-                    } else if (partseq[j] == 'G') {
+                    } else if (subseq[j] == 'G') {
                         output_sstream << "0 " << param.nucleotide_weight_ << " 0 0 ";
-                    } else if (partseq[j] == 'C') {
+                    } else if (subseq[j] == 'C') {
                         output_sstream << "0 0 " << param.nucleotide_weight_ << " 0 ";
                     } else {
                         output_sstream << "0 0 0 " << param.nucleotide_weight_ << " ";
@@ -990,21 +990,21 @@ void RaptRanker::CreateAllconnectHTMotifClusterDB(const Parameter_info &param){
 
 
     std::string dbfile = param.analysis_dbfile_;
-    int records_num = 0; //number of partseq records
+    int records_num = 0; //number of subseq records
 
     try {
         SQLite::Database    seqinfoDB(dbfile, SQLite::OPEN_READWRITE);
-//        SQLite::Statement   select_query(seqinfoDB, "SELECT MAX(partseq_id) FROM all_partseq");
+//        SQLite::Statement   select_query(seqinfoDB, "SELECT MAX(subseq_id) FROM all_subseq");
         SQLite::Transaction transaction(seqinfoDB);
 
-        records_num = seqinfoDB.execAndGet("SELECT MAX(partseq_id) FROM all_partseq");
+        records_num = seqinfoDB.execAndGet("SELECT MAX(subseq_id) FROM all_subseq");
        /* while (select_query.executeStep()){
             records_num = select_query.getColumn(0).getInt();
         }*/
 
         transaction.commit();
     }catch(std::exception& e){
-        std::cerr << "Error in get MAX(partseq_id) for making UnionFind" << std::endl;
+        std::cerr << "Error in get MAX(subseq_id) for making UnionFind" << std::endl;
         std::cerr << "exception:" << e.what() << std::endl;
         exit(1);
     }
@@ -1039,10 +1039,10 @@ void RaptRanker::WeightedUnionFind::make_clusterDB(const Parameter_info &param) 
     std::string dbfile = param.analysis_dbfile_;
     try {
         SQLite::Database    resultDB(dbfile, SQLite::OPEN_READWRITE);
-        SQLite::Statement   insert_query(resultDB, "INSERT OR IGNORE INTO partseq_cluster(partseq_id,cluster_id) VALUES(?1,?2)");
+        SQLite::Statement   insert_query(resultDB, "INSERT OR IGNORE INTO subseq_cluster(subseq_id,cluster_id) VALUES(?1,?2)");
         SQLite::Transaction transaction(resultDB);
 
-        //make clusters (define cluster_id for each root partseqs)
+        //make clusters (define cluster_id for each root subseqs)
         int cluster_id = 1;
         for(int i=0, n=(int)data_.size(); i<n; ++i){
             if(data_[i] < 0){
@@ -1063,7 +1063,7 @@ void RaptRanker::WeightedUnionFind::make_clusterDB(const Parameter_info &param) 
 
         transaction.commit();
     }catch(std::exception& e){
-        std::cerr << "Error in inserting into partseq_cluster table" << std::endl;
+        std::cerr << "Error in inserting into subseq_cluster table" << std::endl;
         std::cerr << "exception:" << e.what() << std::endl;
         exit(1);
     }
@@ -1149,9 +1149,9 @@ void RaptRanker::CalcSeqFreqEnrich_DB(const Parameter_info &param){
 
 
 void RaptRanker::CalcPartseqScoreDB(const Parameter_info &param){
-    std::cout << "Calculating partseq score..."  << std::endl;
+    std::cout << "Calculating subseq score..."  << std::endl;
 
-    //partseq count
+    //subseq count
     try {
         std::string dbfile = param.analysis_dbfile_;
         SQLite::Database    resultDB(dbfile, SQLite::OPEN_READWRITE);
@@ -1159,8 +1159,8 @@ void RaptRanker::CalcPartseqScoreDB(const Parameter_info &param){
         SQLite::Database    seqinfoDB(dbfile, SQLite::OPEN_READWRITE);
 
         SQLite::Statement   seq_count_select_query(seqinfoDB, "SELECT round_id, value FROM seq_count WHERE seq_id == ?1");
-        SQLite::Statement   partseq_id_select_query(resultDB, "SELECT partseq_id FROM all_partseq WHERE seq_id == ?1");
-        SQLite::Statement   partseq_count_insert_query(resultDB, "INSERT INTO partseq_count(partseq_id,round_id,value) VALUES(?1,?2,?3)");
+        SQLite::Statement   subseq_id_select_query(resultDB, "SELECT subseq_id FROM all_subseq WHERE seq_id == ?1");
+        SQLite::Statement   subseq_count_insert_query(resultDB, "INSERT INTO subseq_count(subseq_id,round_id,value) VALUES(?1,?2,?3)");
 
         SQLite::Transaction seqinfo_transaction(seqinfoDB);
         SQLite::Transaction result_transaction(resultDB);
@@ -1176,39 +1176,39 @@ void RaptRanker::CalcPartseqScoreDB(const Parameter_info &param){
             }
             seq_count_select_query.reset();
 
-            partseq_id_select_query.bind(1,seq_id);
-            while(partseq_id_select_query.executeStep() ) {
-                int part_id = partseq_id_select_query.getColumn(0).getInt();
+            subseq_id_select_query.bind(1,seq_id);
+            while(subseq_id_select_query.executeStep() ) {
+                int sub_id = subseq_id_select_query.getColumn(0).getInt();
                 for(int round = 0, m=param.input_file_nums_; round<m; ++round){
-                    partseq_count_insert_query.bind(1,part_id);
-                    partseq_count_insert_query.bind(2,round+ROUND_BUFFER);
-                    partseq_count_insert_query.bind(3,counts[round]);
-                    while(partseq_count_insert_query.executeStep() ) {}
-                    partseq_count_insert_query.reset();
+                    subseq_count_insert_query.bind(1,sub_id);
+                    subseq_count_insert_query.bind(2,round+ROUND_BUFFER);
+                    subseq_count_insert_query.bind(3,counts[round]);
+                    while(subseq_count_insert_query.executeStep() ) {}
+                    subseq_count_insert_query.reset();
                 }
             }
-            partseq_id_select_query.reset();
+            subseq_id_select_query.reset();
         }//for seq
 
         seqinfo_transaction.commit();
         result_transaction.commit();
     }catch(std::exception& e){
-        std::cerr << "Error in calculation and inserting of partseq count" << std::endl;
+        std::cerr << "Error in calculation and inserting of subseq count" << std::endl;
         std::cerr << "exception:" << e.what() << std::endl;
         exit(1);
     }
 
 
-    //partseq freq enrich
+    //subseq freq enrich
     try {
         std::string dbfile = param.analysis_dbfile_;
         SQLite::Database    resultDB(dbfile, SQLite::OPEN_READWRITE);
 
-        SQLite::Statement   total_count_select_query(resultDB, "SELECT round_id,SUM(value) FROM partseq_count GROUP BY round_id");
+        SQLite::Statement   total_count_select_query(resultDB, "SELECT round_id,SUM(value) FROM subseq_count GROUP BY round_id");
 
-        SQLite::Statement   partseq_count_select_query(resultDB, "SELECT round_id, value FROM partseq_count WHERE partseq_id == ?1");
-        SQLite::Statement   partseq_freq_insert_query(resultDB, "INSERT INTO partseq_freq(partseq_id,round_id,value) VALUES(?1,?2,?3)");
-        //SQLite::Statement   partseq_enrich_insert_query(resultDB, "INSERT INTO partseq_enrich(partseq_id,round_id,value) VALUES(?1,?2,?3)");
+        SQLite::Statement   subseq_count_select_query(resultDB, "SELECT round_id, value FROM subseq_count WHERE subseq_id == ?1");
+        SQLite::Statement   subseq_freq_insert_query(resultDB, "INSERT INTO subseq_freq(subseq_id,round_id,value) VALUES(?1,?2,?3)");
+        //SQLite::Statement   subseq_enrich_insert_query(resultDB, "INSERT INTO subseq_enrich(subseq_id,round_id,value) VALUES(?1,?2,?3)");
 
 
         SQLite::Transaction result_transaction(resultDB);
@@ -1220,49 +1220,49 @@ void RaptRanker::CalcPartseqScoreDB(const Parameter_info &param){
         }
         total_count_select_query.reset();
 
-        int last_partseq_id = resultDB.execAndGet("SELECT MAX(partseq_id) FROM all_partseq");
-        for (int partseq_id = 1; partseq_id <= last_partseq_id; ++partseq_id) {
+        int last_subseq_id = resultDB.execAndGet("SELECT MAX(subseq_id) FROM all_subseq");
+        for (int subseq_id = 1; subseq_id <= last_subseq_id; ++subseq_id) {
             std::vector<double> frequencies((unsigned long)param.input_file_nums_,0.0);
-            partseq_count_select_query.bind(1,partseq_id);
+            subseq_count_select_query.bind(1,subseq_id);
 
-            while(partseq_count_select_query.executeStep() ) {
-                int round = partseq_count_select_query.getColumn(0).getInt() - ROUND_BUFFER;
-                frequencies[round] = partseq_count_select_query.getColumn(1).getDouble() / total_counts[round];
-            }//while partseq_count_select_query
-            partseq_count_select_query.reset();
+            while(subseq_count_select_query.executeStep() ) {
+                int round = subseq_count_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                frequencies[round] = subseq_count_select_query.getColumn(1).getDouble() / total_counts[round];
+            }//while subseq_count_select_query
+            subseq_count_select_query.reset();
 
             //frequency
             for(int round = 0, m=param.input_file_nums_; round<m; ++round){
                 //insert Frequency
-                partseq_freq_insert_query.bind(1,partseq_id);
-                partseq_freq_insert_query.bind(2,round+ROUND_BUFFER);
-                partseq_freq_insert_query.bind(3,frequencies[round]);
-                while(partseq_freq_insert_query.executeStep() ){}
-                partseq_freq_insert_query.reset();
+                subseq_freq_insert_query.bind(1,subseq_id);
+                subseq_freq_insert_query.bind(2,round+ROUND_BUFFER);
+                subseq_freq_insert_query.bind(3,frequencies[round]);
+                while(subseq_freq_insert_query.executeStep() ){}
+                subseq_freq_insert_query.reset();
             }//for round
 
             //enrich scores
             /*for (int round = 1, m=param.input_file_nums_; round<m; ++round) {
                 if(frequencies[round-1] != 0){
-                    partseq_enrich_insert_query.bind(1,partseq_id);
-                    partseq_enrich_insert_query.bind(2,round+ROUND_BUFFER);
-                    partseq_enrich_insert_query.bind(3,frequencies[round] / frequencies[round-1]);
-                    while(partseq_enrich_insert_query.executeStep() ){}
-                    partseq_enrich_insert_query.reset();
+                    subseq_enrich_insert_query.bind(1,subseq_id);
+                    subseq_enrich_insert_query.bind(2,round+ROUND_BUFFER);
+                    subseq_enrich_insert_query.bind(3,frequencies[round] / frequencies[round-1]);
+                    while(subseq_enrich_insert_query.executeStep() ){}
+                    subseq_enrich_insert_query.reset();
                 }//if
             }//for round*/
 
-        }//for partseq
+        }//for subseq
 
         result_transaction.commit();
     }catch(std::exception& e){
-        std::cerr << "Error in calculation and inserting of partseq frequency" << std::endl;
+        std::cerr << "Error in calculation and inserting of subseq frequency" << std::endl;
         std::cerr << "exception:" << e.what() << std::endl;
         exit(1);
     }
 
 
-    std::cout << "Calculate partseq score finished."  << std::endl;
+    std::cout << "Calculate subseq score finished."  << std::endl;
 }
 
 
@@ -1290,27 +1290,27 @@ void RaptRanker::CalcClusterScoreDB(const Parameter_info &param) {
 
     //cluster count
     std::string query = "INSERT INTO cluster_count(cluster_id,round_id,value)"
-                        "SELECT partseq_cluster.cluster_id,round_id,SUM(value) "
-                        "FROM partseq_cluster NATURAL INNER JOIN partseq_count "
-                        "GROUP BY partseq_cluster.cluster_id, round_id";
+                        "SELECT subseq_cluster.cluster_id,round_id,SUM(value) "
+                        "FROM subseq_cluster NATURAL INNER JOIN subseq_count "
+                        "GROUP BY subseq_cluster.cluster_id, round_id";
 
     ScoreCalculateAndInserter(param, "cluster count", query);
 
 
     //cluster deg
     query = "INSERT INTO cluster_deg(cluster_id,round_id,value) "
-            "SELECT partseq_cluster.cluster_id,round_id,COUNT(partseq_id) "
-            "FROM partseq_cluster NATURAL INNER JOIN partseq_count "
+            "SELECT subseq_cluster.cluster_id,round_id,COUNT(subseq_id) "
+            "FROM subseq_cluster NATURAL INNER JOIN subseq_count "
             "WHERE value IS NOT NULL "
-            "GROUP BY partseq_cluster.cluster_id, round_id";
+            "GROUP BY subseq_cluster.cluster_id, round_id";
 
     ScoreCalculateAndInserter(param, "cluster degree", query);
 
     //cluster freq
     query = "INSERT INTO cluster_freq(cluster_id,round_id,value) "
-            "SELECT partseq_cluster.cluster_id,round_id,SUM(value) "
-            "FROM partseq_cluster NATURAL INNER JOIN partseq_freq "
-            "GROUP BY partseq_cluster.cluster_id, round_id";
+            "SELECT subseq_cluster.cluster_id,round_id,SUM(value) "
+            "FROM subseq_cluster NATURAL INNER JOIN subseq_freq "
+            "GROUP BY subseq_cluster.cluster_id, round_id";
 
     ScoreCalculateAndInserter(param, "cluster frequency", query);
 
@@ -1327,7 +1327,7 @@ void RaptRanker::CalcClusterScoreDB(const Parameter_info &param) {
 
         SQLite::Transaction result_transaction(resultDB);
 
-        int last_cluster_id = resultDB.execAndGet("SELECT MAX(cluster_id) FROM partseq_cluster");
+        int last_cluster_id = resultDB.execAndGet("SELECT MAX(cluster_id) FROM subseq_cluster");
         for (int cluster_id = 1; cluster_id <= last_cluster_id; ++cluster_id) {
             std::vector<double> cluster_freqs((unsigned long)param.input_file_nums_,0.0);
 
@@ -1372,7 +1372,7 @@ void RaptRanker::CalcKmerScoreDB(const RaptRanker::Parameter_info &param) {
                                             "kmer_sequence  TEXT     NOT NULL,"
                                             "round_id       INTEGER  NOT NULL,"
                                             "value          NUMERIC  NOT NULL,"
-                                            "FOREIGN KEY(kmer_sequence) REFERENCES all_partseq(part_sequence),"
+                                            "FOREIGN KEY(kmer_sequence) REFERENCES all_subseq(sub_sequence),"
                                             "UNIQUE(kmer_sequence, round_id)"
                                             ")";
 
@@ -1411,17 +1411,17 @@ void RaptRanker::CalcKmerScoreDB(const RaptRanker::Parameter_info &param) {
 
     //kmer_count
     std::string query = "INSERT INTO kmer_count(kmer_sequence,round_id,value)"
-                        "SELECT part_sequence,round_id,SUM(value) FROM all_partseq "
-                        "NATURAL INNER JOIN partseq_count GROUP BY part_sequence,round_id";
+                        "SELECT sub_sequence,round_id,SUM(value) FROM all_subseq "
+                        "NATURAL INNER JOIN subseq_count GROUP BY sub_sequence,round_id";
 
     ScoreCalculateAndInserter(param, "k-mer count", query);
 
 
     //kmer_deg
     query = "INSERT INTO kmer_deg(kmer_sequence,round_id,value)"
-            "SELECT part_sequence,round_id,COUNT(partseq_id) FROM all_partseq "
-            "NATURAL INNER JOIN partseq_count WHERE value IS NOT NULL "
-            "GROUP BY part_sequence,round_id";
+            "SELECT sub_sequence,round_id,COUNT(subseq_id) FROM all_subseq "
+            "NATURAL INNER JOIN subseq_count WHERE value IS NOT NULL "
+            "GROUP BY sub_sequence,round_id";
 
     ScoreCalculateAndInserter(param, "k-mer degree", query);
 
@@ -1429,8 +1429,8 @@ void RaptRanker::CalcKmerScoreDB(const RaptRanker::Parameter_info &param) {
 
     //kmer_freq
     query = "INSERT INTO kmer_freq(kmer_sequence,round_id,value) "
-            "SELECT part_sequence,round_id,SUM(value) FROM all_partseq "
-            "NATURAL INNER JOIN partseq_freq GROUP BY part_sequence,round_id";
+            "SELECT sub_sequence,round_id,SUM(value) FROM all_subseq "
+            "NATURAL INNER JOIN subseq_freq GROUP BY sub_sequence,round_id";
 
     ScoreCalculateAndInserter(param, "k-mer frequency", query);
 
@@ -1440,7 +1440,7 @@ void RaptRanker::CalcKmerScoreDB(const RaptRanker::Parameter_info &param) {
         std::string dbfile = param.analysis_dbfile_;
         SQLite::Database    resultDB(dbfile, SQLite::OPEN_READWRITE);
 
-        SQLite::Statement   kmer_select_query(resultDB, "SELECT DISTINCT(part_sequence) FROM all_partseq");
+        SQLite::Statement   kmer_select_query(resultDB, "SELECT DISTINCT(sub_sequence) FROM all_subseq");
         SQLite::Statement   score_select_query(resultDB, "SELECT round_id,value FROM kmer_freq WHERE kmer_sequence = ?1");
         SQLite::Statement   insert_query(resultDB, "INSERT INTO kmer_enrich(kmer_sequence,round_id,value) VALUES(?1,?2,?3)");
 
@@ -1486,8 +1486,8 @@ void RaptRanker::CalcSeqScoreDB(const Parameter_info &param){
 
     //AMF
     std::string query = "INSERT INTO seq_AMF(seq_id,round_id,value)"
-                        "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_partseq "
-                        "NATURAL INNER JOIN partseq_cluster "
+                        "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_subseq "
+                        "NATURAL INNER JOIN subseq_cluster "
                         "NATURAL INNER JOIN cluster_freq "
                         "GROUP BY seq_id,round_id";
 
@@ -1496,8 +1496,8 @@ void RaptRanker::CalcSeqScoreDB(const Parameter_info &param){
 
     //AME
     query = "INSERT INTO seq_AME(seq_id,round_id,value)"
-            "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_partseq "
-            "NATURAL INNER JOIN partseq_cluster "
+            "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_subseq "
+            "NATURAL INNER JOIN subseq_cluster "
             "NATURAL INNER JOIN cluster_enrich "
             "GROUP BY seq_id,round_id";
 

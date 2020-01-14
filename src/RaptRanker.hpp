@@ -85,8 +85,8 @@ class RaptRanker{
 
 
         //for dev
-        bool exFiltering_ = true;
-        bool exCapR_ = true;
+//        bool exFiltering_ = true;
+//        bool exCapR_ = true;
         bool exSketchSort_ = true;
         bool exKmer_ = true;
         bool export_scoreCSV_ = true;
