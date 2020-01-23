@@ -79,7 +79,7 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
 
 //    param.exFiltering_ = json["exFiltering"].bool_value();
 //    param.exCapR_ = json["exCapR"].bool_value();
-    param.exSketchSort_ = json["exSketchSort"].bool_value();
+//    param.exSketchSort_ = json["exSketchSort"].bool_value();
     param.exKmer_ = json["exKmer"].bool_value();
 
     param.add_binding_ = json["add_binding"].bool_value();
@@ -138,15 +138,14 @@ void RaptRanker::CalcMain(const Parameter_info &param) {
 
 
     //from here depend on analysis parameters
-    if (param.exSketchSort_) {
-        CreateHTPartSeqinfoDB(param);
-        timer.add_check_point("MakePartseq");
 
-        RunSketchsortDB(param);
-        timer.add_check_point("SketchSort");
-        CreateAllconnectHTMotifClusterDB(param);
-        timer.add_check_point("MakeCluster");
-    }
+    CreateHTPartSeqinfoDB(param);
+    timer.add_check_point("MakePartseq");
+
+    RunSketchsortDB(param);
+    timer.add_check_point("SketchSort");
+    CreateAllconnectHTMotifClusterDB(param);
+    timer.add_check_point("MakeCluster");
 
 
     CalcSeqFreqEnrich_DB(param);
