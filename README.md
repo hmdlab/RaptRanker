@@ -1,3 +1,5 @@
+## Please see the [wiki](https://github.com/hmdlab/RaptRanker/wiki) for detail usage
+
 # RaptRanker
 
 RaptRanker is a software for RNA aptamer selection from HT-SELEX experiment data based on local sequence and structure information.
