@@ -82,12 +82,7 @@ class RaptRanker{
         std::string experiment_dbfile_;
         std::string analysis_dbfile_;
         std::string analysis_output_path_;
-
-
-        //for dev
-//        bool exFiltering_ = true;
-//        bool exCapR_ = true;
-//        bool exSketchSort_ = true;
+        //optional parameters
         bool exKmer_ = true;
         bool export_scoreCSV_ = true;
         bool add_binding_ = false;
@@ -138,7 +133,6 @@ class RaptRanker{
             return dist_[x];
         }
 
-        //void make_cluster(SINGLE_MC *ht_MotifClusterinfo, SINGLE_PS &ht_PartSeqinfo);
         void make_clusterDB(const Parameter_info &param);
     };
 
@@ -165,32 +159,23 @@ class RaptRanker{
     };
 
 private:
-    
     std::string parameter_file_name_;
-    
-
     void CalcMSD(std::vector<std::string> &mseq, const int low, const int high, std::vector<std::vector<int> > &simi, std::vector<std::string> &temp, const int n);
     void SetParameterJSON(const std::string &parameter_file, Parameter_info &param);
     void CalcMain(const Parameter_info &param);
-
-    //DB
-    void InputDatasDB(const Parameter_info &param);
-    void CreateCycleSeqinfoDB(const Parameter_info &param);
-    void FastaToSeq_DB(int file_index, const Parameter_info &param);
-    void FastqToSeq_DB(int file_index, const Parameter_info &param);
-    void AddSecondaryStructureDB(const Parameter_info &param);
-
-    void CreateHTPartSeqinfoDB(const Parameter_info &param);
-    void RunSketchsortDB(const Parameter_info &param);
-    void CreateAllconnectHTMotifClusterDB(const Parameter_info &param);
-
-    void CalcSeqFreqEnrich_DB(const Parameter_info &param);
-    void CalcPartseqScoreDB(const Parameter_info &param);
+    void InputDatas(const Parameter_info &param);
+    void ImportFasta(int file_index, const Parameter_info &param);
+    void ImportFastq(int file_index, const Parameter_info &param);
+    void SecondaryStructurePrediction(const Parameter_info &param);
+    void EnumerateSubSeqs(const Parameter_info &param);
+    void RunSketchsort(const Parameter_info &param);
+    void CalcMSF(const Parameter_info &param);
+    void CalcSeqFreqEnrich(const Parameter_info &param);
+    void CalcPartseqScore(const Parameter_info &param);
     void ScoreCalculateAndInserter(const Parameter_info &param, const std::string& score_name, const std::string& query);
-    void CalcClusterScoreDB(const Parameter_info &param);
-    void CalcKmerScoreDB(const Parameter_info &param);
+    void CalcClusterScore(const Parameter_info &param);
+    void CalcKmerScore(const Parameter_info &param);
     void CalcSeqScoreDB(const Parameter_info &param);
-
     void ExportScoreCSV(const Parameter_info &param);
     void AddBindingFlagDB(const Parameter_info &param);
 };

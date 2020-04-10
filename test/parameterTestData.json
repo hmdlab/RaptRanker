@@ -1,0 +1,44 @@
+{
+  "file_type":2,
+  "forward_primer":"TAATACGACTCACTATAGGGAGCAGGAGAGAGGTCAGATG",
+  "reverse_primer":"CCTATGCGTGCTAGTGTGA",
+  "add_forward_primer":"GGGAGCAGGAGAGAGGTCAGATG",
+  "add_reverse_primer":"CCTATGCGTGCTAGTGTGA",
+
+  "sequence_maximum_length":35,
+  "sequence_minimum_length":25,
+
+  "wide_length":10,
+
+  "nucleotide_weight":0.5,
+  "cosine_distance":0.001,
+  "missing_ratio":0.00001,
+
+  "input_file_nums":3,
+  "input_file_list":[
+    {
+      "round_id":0,
+      "round_name":"Round0",
+      "file_path":"../test/TestData-0R.fastq"
+    },
+    {
+      "round_id":1,
+      "round_name":"Round1",
+      "file_path":"../test/TestData-1R.fastq"
+    },
+    {
+      "round_id":2,
+      "round_name":"Round2",
+      "file_path":"../test/TestData-2R.fastq"
+    }
+  ],
+
+  "experiment_dbfile":"../test/your_result/seqinfo.sqlite3",
+  "analysis_dbfile":"../test/your_result/result.sqlite3",
+  "analysis_output_path":"../test/your_result/",  
+
+
+  "add_binding":false,
+  "binding_file_path":""
+  
+}
