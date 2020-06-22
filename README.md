@@ -20,8 +20,7 @@ We checked under the following versions.
 Download or clone the latest version sources, and build with CMake.
 
 ```
-git clone 
-https://github.com/hmdlab/RaptRanker.git
+git clone https://github.com/hmdlab/RaptRanker.git
 cd RaptRanker
 mkdir build
 cd build
