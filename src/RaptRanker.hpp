@@ -45,7 +45,7 @@ SOFTWARE.
 
 constexpr char key[5] = {'A', 'T', 'G', 'C', '\n'};
 constexpr int key_length = 5;
-constexpr int ROUND_BUFFER = 100;
+//constexpr int ROUND_BUFFER = 100;
 
 //using namespace std;
 
@@ -82,6 +82,8 @@ class RaptRanker{
         std::string experiment_dbfile_;
         std::string analysis_dbfile_;
         std::string analysis_output_path_;
+        int score_stl_size_ = -1;
+        std::vector<int> round_ids_;
         //optional parameters
         bool exKmer_ = true;
         bool export_scoreCSV_ = true;

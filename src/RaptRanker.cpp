@@ -57,6 +57,10 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
     for (const auto &item : json["input_file_list"].array_items()) {
         Input_file_info tmp;
         tmp.round_id_ = item["round_id"].int_value();
+        param.round_ids_.emplace_back(item["round_id"].int_value());
+        if(item["round_id"].int_value() + 1 > param.score_stl_size_){
+            param.score_stl_size_ = item["round_id"].int_value() + 1;
+        }
         //convert "-" to "_" in round_name (SQL can't use "-")
         tmp.round_name_ = item["round_name"].string_value();
         std::replace(tmp.round_name_.begin(), tmp.round_name_.end(), '-', '_');
@@ -209,7 +213,7 @@ void RaptRanker::InputDatas(const Parameter_info &param) {
         try {
             SQLite::Database seqinfoDB(dbfile, SQLite::OPEN_READWRITE);
             SQLite::Statement select_query(seqinfoDB, "SELECT COUNT(*) FROM round_info WHERE round_id = ?1");
-            select_query.bind(1, param.input_file_infos_[file_index].round_id_ + ROUND_BUFFER);
+            select_query.bind(1, param.input_file_infos_[file_index].round_id_);
             SQLite::Transaction transaction(seqinfoDB);
             //get seq_id and sequence not secondary-structure predicted yet.
             while (select_query.executeStep()) {
@@ -242,7 +246,7 @@ void RaptRanker::InputDatas(const Parameter_info &param) {
             try {
                 SQLite::Database seqinfoDB(dbfile, SQLite::OPEN_READWRITE);
                 SQLite::Statement select_query(seqinfoDB, "SELECT rawdata_reads,total_reads,unique_reads FROM round_info WHERE round_id = ?1");
-                select_query.bind(1, param.input_file_infos_[file_index].round_id_ + ROUND_BUFFER);
+                select_query.bind(1, param.input_file_infos_[file_index].round_id_);
                 SQLite::Transaction transaction(seqinfoDB);
                 //get seq_id and sequence not secondary-structure predicted yet.
                 while (select_query.executeStep()) {
@@ -327,7 +331,7 @@ void RaptRanker::ImportFasta(int file_index, const Parameter_info &param) {
     int trimmed_5 = 0;
     int trimmed_3 = 0;
     int total_reads = 0;
-    int round_id = param.input_file_infos_[file_index].round_id_ + ROUND_BUFFER;
+    int round_id = param.input_file_infos_[file_index].round_id_;
     if (input.fail()) {
         std::cerr << "input " + param.input_file_infos_[file_index].file_path_ << " failed." << std::endl;
         exit(1);
@@ -457,7 +461,7 @@ void RaptRanker::ImportFastq(int file_index, const Parameter_info &param) {
     int trimmed_5 = 0;
     int trimmed_3 = 0;
     int total_reads = 0;
-    int round_id = param.input_file_infos_[file_index].round_id_ + ROUND_BUFFER;
+    int round_id = param.input_file_infos_[file_index].round_id_;
     if (input.fail()) {
         std::cerr << "input " << param.input_file_infos_[file_index].file_path_ << " failed." << std::endl;
         exit(1);
@@ -913,7 +917,8 @@ void RaptRanker::CalcSeqFreqEnrich(const Parameter_info &param) {
         SQLite::Statement id_select_query(seqinfoDB, "SELECT DISTINCT(all_seq.seq_id) FROM all_seq "
                                                      "LEFT OUTER JOIN seq_freq ON (all_seq.seq_id = seq_freq.seq_id)"
                                                      "WHERE value IS NULL");
-        SQLite::Statement totalread_select_query(seqinfoDB, "SELECT total_reads FROM round_info ORDER BY round_id ASC");
+//        SQLite::Statement max_round_id_select_query(seqinfoDB, "SELECT MAX(round_id) FROM round_info ");
+        SQLite::Statement totalread_select_query(seqinfoDB, "SELECT round_id,total_reads FROM round_info");
         SQLite::Statement counts_select_query(seqinfoDB, "SELECT round_id, value FROM seq_count WHERE seq_id == ?1");
         SQLite::Statement freq_insert_query(seqinfoDB,
                                             "INSERT INTO seq_freq(seq_id,round_id,value) VALUES(?1, ?2, ?3)");
@@ -922,41 +927,53 @@ void RaptRanker::CalcSeqFreqEnrich(const Parameter_info &param) {
 
         SQLite::Transaction seqinfo_transaction(seqinfoDB);
         //get total_reads of each round
-        std::vector<double> total_reads;
+//        int size = -1;
+//        while (max_round_id_select_query.executeStep()) {
+//            size = max_round_id_select_query.getColumn(0).getInt() + 1;
+//        }
+//        max_round_id_select_query.reset();
+
+//        std::vector<int> round_ids;
+        std::vector<double> total_reads((unsigned long) param.score_stl_size_, 0.0);
         while (totalread_select_query.executeStep()) {
-            total_reads.emplace_back(totalread_select_query.getColumn(0).getDouble());
+            int round = totalread_select_query.getColumn(0).getInt();
+//            param.round_ids.emplace_back(round);
+            total_reads[round] = totalread_select_query.getColumn(1).getDouble();
         }
         totalread_select_query.reset();
 
         //for each seq
         while (id_select_query.executeStep()) {
             int seq_id = id_select_query.getColumn(0).getInt();
-            std::vector<double> Frequency((unsigned long) param.input_file_nums_, 0.0);
+            std::vector<double> Frequency((unsigned long) param.score_stl_size_, 0.0);
 
             //calc Frequency
             counts_select_query.bind(1, seq_id);
             while (counts_select_query.executeStep()) {
-                int round = counts_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = counts_select_query.getColumn(0).getInt();
                 double count = counts_select_query.getColumn(1).getDouble();
                 Frequency[round] = count / total_reads[round];
             }
             counts_select_query.reset();
 
             //insert Frequency
-            for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+            for (const auto & round : param.round_ids_) {
                 freq_insert_query.bind(1, seq_id);
-                freq_insert_query.bind(2, round + ROUND_BUFFER);
+                freq_insert_query.bind(2, round);
                 freq_insert_query.bind(3, Frequency[round]);
                 while (freq_insert_query.executeStep()) {}
                 freq_insert_query.reset();
             }//for round
 
             //enrich scores
-            for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-                if (Frequency[round - 1] != 0) {
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                int round = param.round_ids_[index];
+                int prev_round = param.round_ids_[index - 1];
+
+                if (Frequency[prev_round] != 0) {
                     enrich_insert_query.bind(1, seq_id);
-                    enrich_insert_query.bind(2, round + ROUND_BUFFER);
-                    enrich_insert_query.bind(3, Frequency[round] / Frequency[round - 1]);
+                    enrich_insert_query.bind(2, round);
+                    enrich_insert_query.bind(3, Frequency[round] / Frequency[prev_round]);
                     while (enrich_insert_query.executeStep()) {}
                     enrich_insert_query.reset();
                 }
@@ -973,6 +990,7 @@ void RaptRanker::CalcSeqFreqEnrich(const Parameter_info &param) {
 
 void RaptRanker::CalcPartseqScore(const Parameter_info &param) {
     std::cout << "Calculating subsequence scores..." << std::endl;
+
     //subseq count
     try {
         std::string dbfile = param.analysis_dbfile_;
@@ -988,11 +1006,11 @@ void RaptRanker::CalcPartseqScore(const Parameter_info &param) {
 
         int last_seq_id = seqinfoDB.execAndGet("SELECT MAX(seq_id) FROM all_seq");
         for (int seq_id = 1; seq_id <= last_seq_id; ++seq_id) {
-            std::vector<int> counts((unsigned long) param.input_file_nums_, 0);
+            std::vector<int> counts((unsigned long) param.score_stl_size_, 0);
             seq_count_select_query.bind(1, seq_id);
 
             while (seq_count_select_query.executeStep()) {
-                int round = seq_count_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = seq_count_select_query.getColumn(0).getInt();
                 counts[round] = seq_count_select_query.getColumn(1).getInt();
             }
             seq_count_select_query.reset();
@@ -1000,9 +1018,9 @@ void RaptRanker::CalcPartseqScore(const Parameter_info &param) {
             subseq_id_select_query.bind(1, seq_id);
             while (subseq_id_select_query.executeStep()) {
                 int sub_id = subseq_id_select_query.getColumn(0).getInt();
-                for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+                for (const auto & round : param.round_ids_) {
                     subseq_count_insert_query.bind(1, sub_id);
-                    subseq_count_insert_query.bind(2, round + ROUND_BUFFER);
+                    subseq_count_insert_query.bind(2, round);
                     subseq_count_insert_query.bind(3, counts[round]);
                     while (subseq_count_insert_query.executeStep()) {}
                     subseq_count_insert_query.reset();
@@ -1030,29 +1048,29 @@ void RaptRanker::CalcPartseqScore(const Parameter_info &param) {
                                                    "INSERT INTO subseq_freq(subseq_id,round_id,value) VALUES(?1,?2,?3)");
         SQLite::Transaction result_transaction(resultDB);
 
-        std::vector<double> total_counts((unsigned long) param.input_file_nums_, 0.0);
+        std::vector<double> total_counts((unsigned long) param.score_stl_size_, 0.0);
         while (total_count_select_query.executeStep()) {
-            int round = total_count_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+            int round = total_count_select_query.getColumn(0).getInt();
             total_counts[round] = total_count_select_query.getColumn(1).getDouble();
         }
         total_count_select_query.reset();
 
         int last_subseq_id = resultDB.execAndGet("SELECT MAX(subseq_id) FROM all_subseq");
         for (int subseq_id = 1; subseq_id <= last_subseq_id; ++subseq_id) {
-            std::vector<double> frequencies((unsigned long) param.input_file_nums_, 0.0);
+            std::vector<double> frequencies((unsigned long) param.score_stl_size_, 0.0);
             subseq_count_select_query.bind(1, subseq_id);
 
             while (subseq_count_select_query.executeStep()) {
-                int round = subseq_count_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = subseq_count_select_query.getColumn(0).getInt();
                 frequencies[round] = subseq_count_select_query.getColumn(1).getDouble() / total_counts[round];
             }//while subseq_count_select_query
             subseq_count_select_query.reset();
 
             //frequency
-            for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+            for (const auto & round : param.round_ids_) {
                 //insert Frequency
                 subseq_freq_insert_query.bind(1, subseq_id);
-                subseq_freq_insert_query.bind(2, round + ROUND_BUFFER);
+                subseq_freq_insert_query.bind(2, round);
                 subseq_freq_insert_query.bind(3, frequencies[round]);
                 while (subseq_freq_insert_query.executeStep()) {}
                 subseq_freq_insert_query.reset();
@@ -1128,21 +1146,24 @@ void RaptRanker::CalcClusterScore(const Parameter_info &param) {
 
         int last_cluster_id = resultDB.execAndGet("SELECT MAX(cluster_id) FROM subseq_cluster");
         for (int cluster_id = 1; cluster_id <= last_cluster_id; ++cluster_id) {
-            std::vector<double> cluster_freqs((unsigned long) param.input_file_nums_, 0.0);
+            std::vector<double> cluster_freqs((unsigned long) param.score_stl_size_, 0.0);
 
             select_query.bind(1, cluster_id);
 
             while (select_query.executeStep()) {
-                int round = select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = select_query.getColumn(0).getInt();
                 cluster_freqs[round] = select_query.getColumn(1).getDouble();
             }
             select_query.reset();
 
-            for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-                if (cluster_freqs[round - 1] != 0) {
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                int round = param.round_ids_[index];
+                int prev_round = param.round_ids_[index - 1];
+
+                if (cluster_freqs[prev_round] != 0) {
                     insert_query.bind(1, cluster_id);
-                    insert_query.bind(2, round + ROUND_BUFFER);
-                    insert_query.bind(3, cluster_freqs[round] / cluster_freqs[round - 1]);
+                    insert_query.bind(2, round);
+                    insert_query.bind(3, cluster_freqs[round] / cluster_freqs[prev_round]);
                     while (insert_query.executeStep()) {}
                     insert_query.reset();
                 }
@@ -1218,21 +1239,24 @@ void RaptRanker::CalcKmerScore(const RaptRanker::Parameter_info &param) {
         SQLite::Transaction result_transaction(resultDB);
 
         while (kmer_select_query.executeStep()) {
-            std::vector<double> kmer_freqs((unsigned long) param.input_file_nums_, 0.0);
+            std::vector<double> kmer_freqs((unsigned long) param.score_stl_size_, 0.0);
             std::string kmer_seq = kmer_select_query.getColumn(0).getText();
 
             score_select_query.bind(1, kmer_seq);
             while (score_select_query.executeStep()) {
-                int round = score_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = score_select_query.getColumn(0).getInt();
                 kmer_freqs[round] = score_select_query.getColumn(1).getDouble();
             }
             score_select_query.reset();
 
-            for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-                if (kmer_freqs[round - 1] != 0) {
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                int round = param.round_ids_[index];
+                int prev_round = param.round_ids_[index - 1];
+
+                if (kmer_freqs[prev_round] != 0) {
                     insert_query.bind(1, kmer_seq);
-                    insert_query.bind(2, round + ROUND_BUFFER);
-                    insert_query.bind(3, kmer_freqs[round] / kmer_freqs[round - 1]);
+                    insert_query.bind(2, round);
+                    insert_query.bind(3, kmer_freqs[round] / kmer_freqs[prev_round]);
                     while (insert_query.executeStep()) {}
                     insert_query.reset();
                 }
@@ -1309,22 +1333,22 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
 
         header << "seq_id,sequence,binding_flag";
 
-        std::vector<std::string> round_names((unsigned long) param.input_file_nums_, "");
+        std::vector<std::string> round_names((unsigned long) param.score_stl_size_, "");
         while (round_name_select_query.executeStep()) {
-            int round = round_name_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+            int round = round_name_select_query.getColumn(0).getInt();
             round_names[round] = round_name_select_query.getColumn(1).getText();
         }
-        for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+        for (const auto & round : param.round_ids_) {
             header << "," << round_names[round] << "_" << "Count";
         }
-        for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+        for (const auto & round : param.round_ids_) {
             header << "," << round_names[round] << "_" << "Frequency";
         }
-        for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-            header << "," << round_names[round] << "_" << "Enrichment";
+        for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+            header << "," << round_names[param.round_ids_[index]] << "_" << "Enrichment";
         }
-        for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-            header << "," << round_names[round] << "_" << "AME";
+        for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+            header << "," << round_names[param.round_ids_[index]] << "_" << "AME";
         }
         output << header.str() << "\n";
 
@@ -1332,10 +1356,10 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
         while (seq_select_query.executeStep()) {
             std::ostringstream osstream;
 
-            std::vector<int> counts((unsigned long) param.input_file_nums_, 0);
-            std::vector<double> freqs((unsigned long) param.input_file_nums_, 0.0);
-            std::vector<double> enrichs((unsigned long) param.input_file_nums_, 0.0);
-            std::vector<double> AMEs((unsigned long) param.input_file_nums_, 0.0);
+            std::vector<int> counts((unsigned long) param.score_stl_size_, 0);
+            std::vector<double> freqs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> enrichs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> AMEs((unsigned long) param.score_stl_size_, 0.0);
 
             int seq_id = seq_select_query.getColumn(0).getInt();
             std::string sequence = seq_select_query.getColumn(1).getText();
@@ -1346,7 +1370,7 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             //get count
             count_select_query.bind(1, seq_id);
             while (count_select_query.executeStep()) {
-                int round = count_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = count_select_query.getColumn(0).getInt();
                 counts[round] = count_select_query.getColumn(1).getInt();
             }
             count_select_query.reset();
@@ -1354,7 +1378,7 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             //get freq
             freq_select_query.bind(1, seq_id);
             while (freq_select_query.executeStep()) {
-                int round = freq_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = freq_select_query.getColumn(0).getInt();
                 freqs[round] = freq_select_query.getColumn(1).getDouble();
             }
             freq_select_query.reset();
@@ -1362,7 +1386,7 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             //get enrich
             enrich_select_query.bind(1, seq_id);
             while (enrich_select_query.executeStep()) {
-                int round = enrich_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = enrich_select_query.getColumn(0).getInt();
                 enrichs[round] = enrich_select_query.getColumn(1).getDouble();
             }
             enrich_select_query.reset();
@@ -1370,23 +1394,23 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             //get AME
             AME_select_query.bind(1, seq_id);
             while (AME_select_query.executeStep()) {
-                int round = AME_select_query.getColumn(0).getInt() - ROUND_BUFFER;
+                int round = AME_select_query.getColumn(0).getInt();
                 AMEs[round] = AME_select_query.getColumn(1).getDouble();
             }
             AME_select_query.reset();
 
 
-            for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+            for (const auto & round : param.round_ids_) {
                 osstream << "," << counts[round];
             }
-            for (int round = 0, m = param.input_file_nums_; round < m; ++round) {
+            for (const auto & round : param.round_ids_) {
                 osstream << "," << freqs[round];
             }
-            for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-                osstream << "," << enrichs[round];
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                osstream << "," << enrichs[param.round_ids_[index]];
             }
-            for (int round = 1, m = param.input_file_nums_; round < m; ++round) {
-                osstream << "," << AMEs[round];
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                osstream << "," << AMEs[param.round_ids_[index]];
             }
 
             output << osstream.str() << "\n";
