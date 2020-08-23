@@ -31,6 +31,11 @@ void RaptRanker::Run() {
     CalcMain(param);
 }
 
+bool file_exists(const std::string &file_path) {
+    std::ifstream ifs(file_path);
+    return ifs.is_open();
+}
+
 void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_info &param) {
     std::ifstream input(parameter_file, std::ios::in);
     if (input.fail()) {
@@ -39,8 +44,12 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
     }
     std::string str((std::istreambuf_iterator<char>(input)),
                     std::istreambuf_iterator<char>());
-    string err;
+    string err = "";
     auto json = json11::Json::parse(str, err);
+    if(err != ""){
+        std::cerr << "Error in json file: " << err << std::endl;
+        exit(1);
+    }
 
     param.file_type_ = json["file_type"].int_value();
     param.forward_primer_ = json["forward_primer"].string_value();
@@ -69,10 +78,29 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
     }
     param.experiment_dbfile_ = json["experiment_dbfile"].string_value();
     param.analysis_dbfile_ = json["analysis_dbfile"].string_value();
+    if (file_exists(param.analysis_dbfile_)) {
+        std::cerr << "\"" << param.analysis_dbfile_ << "\" is already exists.\n";
+        exit(1);
+    }
     param.analysis_output_path_ = json["analysis_output_path"].string_value();
-    param.exKmer_ = json["exKmer"].bool_value();
+    std::string ofile = param.analysis_output_path_ + "score.csv";
+    if (file_exists(ofile)) {
+        std::cerr << "\"" << ofile << "\" is already exists.\n";
+        exit(1);
+    }
+    param.calcAKFandAKE_ = json["calcAKFandAKE"].bool_value();
+    param.calcBKFandBKE_ = json["calcBKFandBKE"].bool_value();
+    param.calcBMFandBME_ = json["calcBMFandBME"].bool_value();
     param.add_binding_ = json["add_binding"].bool_value();
     param.bindingfile_path_ = json["binding_file_path"].string_value();
+    if(param.add_binding_){
+        std::ifstream binding_input(param.bindingfile_path_);
+        if (binding_input.fail()) {
+            std::cerr << "Can not open \"" << param.bindingfile_path_  << "\" \n";
+            exit(1);
+        }
+        binding_input.close();
+    }
 
     std::cout << "===== Parameter setting =====\n";
     std::cout << "file_type : " << param.file_type_ << "\n";
@@ -98,7 +126,9 @@ void RaptRanker::SetParameterJSON(const std::string &parameter_file, Parameter_i
     std::cout << "analysis_dbfile : " << param.analysis_dbfile_ << "\n";
     std::cout << "=============================\n";
     std::cout << "===== extra options =====\n";
-    std::cout << "exKmer : " << param.exKmer_ << "\n";
+    std::cout << "calcAKFandAKE : " << param.calcAKFandAKE_ << "\n";
+    std::cout << "calcBKFandBKE : " << param.calcBKFandBKE_ << "\n";
+    std::cout << "calcBMFandBME : " << param.calcBMFandBME_ << "\n";
     std::cout << "addbinding : " << std::to_string(param.add_binding_) << "\n";
     std::cout << "bindingfile : " << param.bindingfile_path_ << "\n";
     std::cout << "=============================\n";
@@ -122,7 +152,7 @@ void RaptRanker::CalcMain(const Parameter_info &param) {
     timer.add_check_point("CalcSubseqScore");
     CalcClusterScore(param);
     timer.add_check_point("CalcClusterScore");
-    if (param.exKmer_) {
+    if (param.calcAKFandAKE_ || param.calcBKFandBKE_) {
         CalcKmerScore(param);
         timer.add_check_point("CalcKmerScore");
     }
@@ -581,10 +611,7 @@ std::vector<std::string> split(const std::string &str, const char delim) {
     res.emplace_back(std::string(str, current, str.size() - current));
     return res;
 }
-bool file_exists(const std::string &file_path) {
-    std::ifstream ifs(file_path);
-    return ifs.is_open();
-}
+
 
 void RaptRanker::SecondaryStructurePrediction(const Parameter_info &param) {
     std::cout << "Predicting secondary structures... \n"
@@ -675,22 +702,20 @@ void RaptRanker::EnumerateSubSeqs(const Parameter_info &param) {
         resultDB.exec("CREATE TABLE IF NOT EXISTS cluster_enrich" + cluster_score_template);
         std::cout << "\t cluster score Tables are ready." << std::endl;
 
-        resultDB.exec(
-                "CREATE TABLE IF NOT EXISTS seq_AMF("
-                "seq_id      INTEGER  NOT NULL,"
-                "round_id    INTEGER  NOT NULL,"
-                "value       NUMERIC  NOT NULL,"
-                "UNIQUE(seq_id, round_id)"
-                ")"
-        );
-        resultDB.exec(
-                "CREATE TABLE IF NOT EXISTS seq_AME("
-                "seq_id      INTEGER  NOT NULL,"
-                "round_id    INTEGER  NOT NULL,"
-                "value       NUMERIC  NOT NULL,"
-                "UNIQUE(seq_id, round_id)"
-                ")"
-        );
+        std::string seq_score_template = "("
+                                         "seq_id      INTEGER  NOT NULL,"
+                                         "round_id    INTEGER  NOT NULL,"
+                                         "value       NUMERIC  NOT NULL,"
+                                         "UNIQUE(seq_id, round_id)"
+                                         ")";
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_AMF" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_AME" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_AKF" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_AKE" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_BMF" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_BME" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_BKF" + seq_score_template);
+        resultDB.exec("CREATE TABLE IF NOT EXISTS seq_BKE" + seq_score_template);
         std::cout << "\t sequence score Tables are ready." << std::endl;
 
         resultDB.exec("CREATE INDEX IF NOT EXISTS subsequence_index ON all_subseq(sub_sequence)");
@@ -701,6 +726,14 @@ void RaptRanker::EnumerateSubSeqs(const Parameter_info &param) {
         resultDB.exec("CREATE INDEX IF NOT EXISTS cluster_deg_value_index ON cluster_deg(value)");
         resultDB.exec("CREATE INDEX IF NOT EXISTS cluster_count_value_index ON cluster_count(value)");
         resultDB.exec("CREATE INDEX IF NOT EXISTS cluster_enrich_value_index ON cluster_enrich(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_AMF_value_index ON seq_AMF(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_AME_value_index ON seq_AME(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_AKF_value_index ON seq_AKF(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_AKE_value_index ON seq_AKE(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_BMF_value_index ON seq_BMF(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_BME_value_index ON seq_BME(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_BKF_value_index ON seq_BKF(value)");
+        resultDB.exec("CREATE INDEX IF NOT EXISTS seq_BKE_value_index ON seq_BKE(value)");
         std::cout << "\t indexes are ready." << std::endl;
     } catch (std::exception &e) {
         std::cerr << "Error in preparing analysis DB file." << std::endl;
@@ -1282,19 +1315,61 @@ void RaptRanker::CalcSeqScoreDB(const Parameter_info &param) {
                         "NATURAL INNER JOIN subseq_cluster "
                         "NATURAL INNER JOIN cluster_freq "
                         "GROUP BY seq_id,round_id";
-
     ScoreCalculateAndInserter(param, "AMF", query);
-
-
     //AME
     query = "INSERT INTO seq_AME(seq_id,round_id,value)"
             "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_subseq "
             "NATURAL INNER JOIN subseq_cluster "
             "NATURAL INNER JOIN cluster_enrich "
             "GROUP BY seq_id,round_id";
-
     ScoreCalculateAndInserter(param, "AME", query);
 
+    if(param.calcAKFandAKE_){
+        //AKF
+        query = "INSERT INTO seq_AKF(seq_id,round_id,value)"
+                            "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_subseq "
+                            "INNER JOIN kmer_freq ON all_subseq.sub_sequence = kmer_freq.kmer_sequence "
+                            "GROUP BY seq_id,round_id";
+        ScoreCalculateAndInserter(param, "AKF", query);
+        //AKE
+        query = "INSERT INTO seq_AKE(seq_id,round_id,value)"
+                "SELECT seq_id,round_id,AVG(IFNULL(value,0.0)) FROM all_subseq "
+                "INNER JOIN kmer_enrich ON all_subseq.sub_sequence = kmer_enrich.kmer_sequence "
+                "GROUP BY seq_id,round_id";
+        ScoreCalculateAndInserter(param, "AKE", query);
+    }
+
+    if(param.calcBKFandBKE_){
+        //BKF
+        query = "INSERT INTO seq_BKF(seq_id,round_id,value)"
+                            "SELECT seq_id,round_id,MAX(IFNULL(value,0.0)) FROM all_subseq "
+                            "INNER JOIN kmer_freq ON all_subseq.sub_sequence = kmer_freq.kmer_sequence "
+                            "GROUP BY seq_id,round_id";
+        ScoreCalculateAndInserter(param, "BKF", query);
+        //BKE
+        query = "INSERT INTO seq_BKE(seq_id,round_id,value)"
+                "SELECT seq_id,round_id,MAX(IFNULL(value,0.0)) FROM all_subseq "
+                "INNER JOIN kmer_enrich ON all_subseq.sub_sequence = kmer_enrich.kmer_sequence "
+                "GROUP BY seq_id,round_id";
+        ScoreCalculateAndInserter(param, "BKE", query);
+    }
+
+    if(param.calcBMFandBME_){
+        //BMF
+        query = "INSERT INTO seq_BMF(seq_id,round_id,value)"
+                            "SELECT seq_id,round_id,MAX(IFNULL(value,0.0)) FROM all_subseq "
+                            "NATURAL INNER JOIN subseq_cluster "
+                            "NATURAL INNER JOIN cluster_freq "
+                            "GROUP BY seq_id,round_id";
+        ScoreCalculateAndInserter(param, "BMF", query);
+        //BME
+        query = "INSERT INTO seq_BME(seq_id,round_id,value)"
+                "SELECT seq_id,round_id,MAX(IFNULL(value,0.0)) FROM all_subseq "
+                "NATURAL INNER JOIN subseq_cluster "
+                "NATURAL INNER JOIN cluster_enrich "
+                "GROUP BY seq_id,round_id";
+        ScoreCalculateAndInserter(param, "BME", query);
+    }
 
     std::cout << "Finished sequence scores calculation." << std::endl;
 }
@@ -1322,7 +1397,14 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
         SQLite::Statement count_select_query(seqinfoDB, "SELECT round_id, value FROM seq_count WHERE seq_id = ?1");
         SQLite::Statement freq_select_query(seqinfoDB, "SELECT round_id, value FROM seq_freq WHERE seq_id = ?1");
         SQLite::Statement enrich_select_query(seqinfoDB, "SELECT round_id, value FROM seq_enrich WHERE seq_id = ?1");
+        SQLite::Statement AMF_select_query(resultDB, "SELECT round_id, value FROM seq_AMF WHERE seq_id = ?1");
         SQLite::Statement AME_select_query(resultDB, "SELECT round_id, value FROM seq_AME WHERE seq_id = ?1");
+        SQLite::Statement AKF_select_query(resultDB, "SELECT round_id, value FROM seq_AKF WHERE seq_id = ?1");
+        SQLite::Statement AKE_select_query(resultDB, "SELECT round_id, value FROM seq_AKE WHERE seq_id = ?1");
+        SQLite::Statement BMF_select_query(resultDB, "SELECT round_id, value FROM seq_BMF WHERE seq_id = ?1");
+        SQLite::Statement BME_select_query(resultDB, "SELECT round_id, value FROM seq_BME WHERE seq_id = ?1");
+        SQLite::Statement BKF_select_query(resultDB, "SELECT round_id, value FROM seq_BKF WHERE seq_id = ?1");
+        SQLite::Statement BKE_select_query(resultDB, "SELECT round_id, value FROM seq_BKE WHERE seq_id = ?1");
 
         SQLite::Transaction seqinfo_transaction(seqinfoDB);
         SQLite::Transaction result_transaction(resultDB);
@@ -1347,8 +1429,35 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
         for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
             header << "," << round_names[param.round_ids_[index]] << "_" << "Enrichment";
         }
+        for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+            header << "," << round_names[param.round_ids_[index]] << "_" << "AMF";
+        }
         for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
             header << "," << round_names[param.round_ids_[index]] << "_" << "AME";
+        }
+        if(param.calcAKFandAKE_){
+            for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                header << "," << round_names[param.round_ids_[index]] << "_" << "AKF";
+            }
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                header << "," << round_names[param.round_ids_[index]] << "_" << "AKE";
+            }
+        }
+        if(param.calcBMFandBME_){
+            for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                header << "," << round_names[param.round_ids_[index]] << "_" << "BMF";
+            }
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                header << "," << round_names[param.round_ids_[index]] << "_" << "BME";
+            }
+        }
+        if(param.calcBKFandBKE_){
+            for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                header << "," << round_names[param.round_ids_[index]] << "_" << "BKF";
+            }
+            for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                header << "," << round_names[param.round_ids_[index]] << "_" << "BKE";
+            }
         }
         output << header.str() << "\n";
 
@@ -1359,7 +1468,14 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             std::vector<int> counts((unsigned long) param.score_stl_size_, 0);
             std::vector<double> freqs((unsigned long) param.score_stl_size_, 0.0);
             std::vector<double> enrichs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> AMFs((unsigned long) param.score_stl_size_, 0.0);
             std::vector<double> AMEs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> AKFs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> AKEs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> BMFs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> BMEs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> BKFs((unsigned long) param.score_stl_size_, 0.0);
+            std::vector<double> BKEs((unsigned long) param.score_stl_size_, 0.0);
 
             int seq_id = seq_select_query.getColumn(0).getInt();
             std::string sequence = seq_select_query.getColumn(1).getText();
@@ -1374,7 +1490,6 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
                 counts[round] = count_select_query.getColumn(1).getInt();
             }
             count_select_query.reset();
-
             //get freq
             freq_select_query.bind(1, seq_id);
             while (freq_select_query.executeStep()) {
@@ -1382,7 +1497,6 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
                 freqs[round] = freq_select_query.getColumn(1).getDouble();
             }
             freq_select_query.reset();
-
             //get enrich
             enrich_select_query.bind(1, seq_id);
             while (enrich_select_query.executeStep()) {
@@ -1391,6 +1505,13 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             }
             enrich_select_query.reset();
 
+            //get AMF
+            AMF_select_query.bind(1, seq_id);
+            while (AMF_select_query.executeStep()) {
+                int round = AMF_select_query.getColumn(0).getInt();
+                AMFs[round] = AMF_select_query.getColumn(1).getDouble();
+            }
+            AMF_select_query.reset();
             //get AME
             AME_select_query.bind(1, seq_id);
             while (AME_select_query.executeStep()) {
@@ -1398,6 +1519,57 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
                 AMEs[round] = AME_select_query.getColumn(1).getDouble();
             }
             AME_select_query.reset();
+
+            if(param.calcAKFandAKE_){
+                //get AMF
+                AKF_select_query.bind(1, seq_id);
+                while (AKF_select_query.executeStep()) {
+                    int round = AKF_select_query.getColumn(0).getInt();
+                    AKFs[round] = AKF_select_query.getColumn(1).getDouble();
+                }
+                AKF_select_query.reset();
+                //get AME
+                AKE_select_query.bind(1, seq_id);
+                while (AKE_select_query.executeStep()) {
+                    int round = AKE_select_query.getColumn(0).getInt();
+                    AKEs[round] = AKE_select_query.getColumn(1).getDouble();
+                }
+                AKE_select_query.reset();
+            }
+
+            if(param.calcBMFandBME_){
+                //get BMF
+                BMF_select_query.bind(1, seq_id);
+                while (BMF_select_query.executeStep()) {
+                    int round = BMF_select_query.getColumn(0).getInt();
+                    BMFs[round] = BMF_select_query.getColumn(1).getDouble();
+                }
+                BMF_select_query.reset();
+                //get BME
+                BME_select_query.bind(1, seq_id);
+                while (BME_select_query.executeStep()) {
+                    int round = BME_select_query.getColumn(0).getInt();
+                    BMEs[round] = BME_select_query.getColumn(1).getDouble();
+                }
+                BME_select_query.reset();
+            }
+
+            if(param.calcBKFandBKE_){
+                //get BKF
+                BKF_select_query.bind(1, seq_id);
+                while (BKF_select_query.executeStep()) {
+                    int round = BKF_select_query.getColumn(0).getInt();
+                    BKFs[round] = BKF_select_query.getColumn(1).getDouble();
+                }
+                BKF_select_query.reset();
+                //get BME
+                BKE_select_query.bind(1, seq_id);
+                while (BKE_select_query.executeStep()) {
+                    int round = BKE_select_query.getColumn(0).getInt();
+                    BKEs[round] = BKE_select_query.getColumn(1).getDouble();
+                }
+                BKE_select_query.reset();
+            }
 
 
             for (const auto & round : param.round_ids_) {
@@ -1409,8 +1581,35 @@ void RaptRanker::ExportScoreCSV(const Parameter_info &param) {
             for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
                 osstream << "," << enrichs[param.round_ids_[index]];
             }
+            for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                osstream << "," << AMFs[param.round_ids_[index]];
+            }
             for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
                 osstream << "," << AMEs[param.round_ids_[index]];
+            }
+            if(param.calcAKFandAKE_){
+                for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                    osstream << "," << AKFs[param.round_ids_[index]];
+                }
+                for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                    osstream << "," << AKEs[param.round_ids_[index]];
+                }
+            }
+            if(param.calcBMFandBME_){
+                for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                    osstream << "," << BMFs[param.round_ids_[index]];
+                }
+                for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                    osstream << "," << BMEs[param.round_ids_[index]];
+                }
+            }
+            if(param.calcBKFandBKE_){
+                for (int index = 0, m = param.round_ids_.size(); index < m; ++index) {
+                    osstream << "," << BKFs[param.round_ids_[index]];
+                }
+                for (int index = 1, m = param.round_ids_.size(); index < m; ++index) {
+                    osstream << "," << BKEs[param.round_ids_[index]];
+                }
             }
 
             output << osstream.str() << "\n";

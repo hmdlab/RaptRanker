@@ -85,7 +85,9 @@ class RaptRanker{
         int score_stl_size_ = -1;
         std::vector<int> round_ids_;
         //optional parameters
-        bool exKmer_ = true;
+        bool calcAKFandAKE_ = false;
+        bool calcBKFandBKE_ = false;
+        bool calcBMFandBME_ = false;
         bool export_scoreCSV_ = true;
         bool add_binding_ = false;
         std::string bindingfile_path_;
